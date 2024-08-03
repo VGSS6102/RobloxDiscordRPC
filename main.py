@@ -1,5 +1,5 @@
 from pypresence import Presence
-import glob, urllib, requests, json, os, time, win32gui, random
+import glob, urllib, requests, json, os, time, win32gui, win32process, random , psutil
 
 # Set this to your own client id from Discord developer portal
 clientId = "1155101158780702830"
@@ -40,6 +40,24 @@ consoleLog("Connected to Discord network!")
 
 lastLogFile = None
 
+def check_roblox_focus():
+        def get_active_window_process_name():
+            hwnd = win32gui.GetForegroundWindow()
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            for proc in psutil.process_iter(['pid', 'name']):
+                if proc.info['pid'] == pid:
+                    return proc.info['name']
+            return None
+
+        active_window_process = get_active_window_process_name()
+        if active_window_process != "RobloxPlayerBeta.exe":
+            run_main_py()
+
+def run_main_py():
+    #subprocess.Popen([sys.executable, "main.py"])
+    os._exit(1)
+
+
 while True:
     if win32gui.FindWindow(None, "Roblox"):
         updatable = True
@@ -51,6 +69,7 @@ while True:
 
             placeId = 0
             jobId = 0
+            lastJobid = 0
             serverIp = 0
             usrId = 1
             isPrivate = False
@@ -89,7 +108,7 @@ while True:
                     redo = False
 
                     if theId:
-                        print(universalData, jobId)
+                        print(universalData, jobId,"to", lastJobid)
                         
                         response = urllib.request.urlopen("https://games.roblox.com/v1/games?universeIds=" + str(theId))
                         data = json.loads(response.read())
@@ -154,4 +173,4 @@ while True:
 
             updatable = False
             
-    time.sleep(5)
+    time.sleep(15)
