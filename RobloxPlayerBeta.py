@@ -256,7 +256,6 @@ def main():
                 if activity != newActivity:
                     print(newActivity)
                     RPC.clear()  # Clear the presence
-                    RPC.close()  # Close the RPC connection
                     break
 
                 RPC.update(**activity)
