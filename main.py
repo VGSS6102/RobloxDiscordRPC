@@ -1,14 +1,6 @@
 from pypresence import Presence
-from InquirerPy.utils import color_print
+from InquirerpipPy.utils import color_print
 import glob, urllib, requests, json, os, time, win32gui, win32process, random , psutil
-
-# Set this to your own client id from Discord developer portal
-clientId = "1155101158780702830"
-
-# Dont touch something below here unless you tryna do something or modify
-
-updatable = True
-redo = False
 
 def find_between(s, first, last):
     try:
@@ -159,20 +151,28 @@ def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
         
         return activity
 
-def get_activity():
+def get_activity(configSettings):
     logFile = getCacheLog()
 
     connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate = getValuesFromCacheLog(logFile)
     print(getValuesFromCacheLog(logFile))
 
-    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate)
+    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate, configSettings)
     print(activity)
 
     return activity
 
+def getClientId(config):
+
+    pass
+
+def loadConfig():
+
+    pass
 
 def main():
-    global clientId
+    config = loadConfig()
+    client_id = getClientId(config)
     while check_roblox_focus():
             
             activity = get_activity()
