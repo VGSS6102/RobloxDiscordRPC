@@ -1,5 +1,5 @@
 from pypresence import Presence
-from InquirerpipPy.utils import color_print
+from InquirerPy.utils import color_print
 import glob, urllib, requests, json, os, time, win32gui, win32process, random , psutil, os, yaml
 
 def find_between(s, first, last):
@@ -92,11 +92,15 @@ def getValuesFromCacheLog(logFile):
         
     return connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate
 
-def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
+def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate, config):
     rblx_logo = "https://blog.roblox.com/wp-content/uploads/2022/08/RBLX_Logo_Launch_Wordmark.png"
     activity = {} 
 
     activity['pid'] = os.getpid()   # Set process ID to close RPC as soon as this script is closed
+
+    programs = config['programs']
+    robloxSettings = programs["Dyl's Roblox RPC"]
+    robloxRPC = robloxSettings['discord_rpc']
 
     if connected == False:
         activity['details'] = "Idle in Menu"
@@ -136,7 +140,14 @@ def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
         activity['large_text'] = data["data"][0]["name"]
         activity['small_image'] = pfpIcon
         activity['small_text'] = dataPlayer["name"]
-        activity['buttons'] = [{"label": "View on website" ,"url": "https://www.roblox.com/games/" + placeId + "/"}]
+        activity['buttons'] = []
+        for button_dict in robloxRPC['buttons']:
+            updated_dict = {}
+            for k, v in button_dict.items():
+                updated_dict[k] = v.format(PLACEID=placeId, JOBID=jobId)
+            activity['buttons'].append(updated_dict)
+
+        # [{k: v.format(PLACEID=placeId, JOBID=jobId) for k,v in dict} for dict in robloxRPC['buttons']]
 
         if isPrivate:
             activity['small_image'] = rblx_logo
@@ -157,29 +168,36 @@ def get_activity(config):
     connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate = getValuesFromCacheLog(logFile)
     print(getValuesFromCacheLog(logFile))
 
-    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate)
+    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate, config)
     print(activity)
 
     return activity
 
 def getConfigSettings(config):
+    if config:
+    
+        programs = config['programs']
+        robloxSettings = programs["Dyl's Roblox RPC"]
+        clientId = robloxSettings['app_id']
+        print('client id success')
 
-    pass
+        return clientId
+    return None
+
 
 def loadConfig():
-
-    # Get the directory of the current script
     script_dir = os.path.dirname(__file__)
 
-    # Construct the relative path
     rel_path = "../../config.yml"
 
-    # Combine them to get the absolute path
     abs_path = os.path.join(script_dir, rel_path)
 
     try:
         with open(abs_path, "r") as file:
             config = yaml.safe_load(file)
+        print('success config')
+        return config
+        
     except Exception as error:
         color_print(
             [ 
@@ -189,13 +207,13 @@ def loadConfig():
                 ('',f"\n{type(error), error}") 
             ] 
         )
-
+    return None
 
 
 def main():
     config = loadConfig()
     clientId = getConfigSettings(config)
-    while check_roblox_focus():
+    while check_roblox_focus() and clientId:
             
             activity = get_activity(config)
             print(activity)
@@ -213,7 +231,7 @@ def main():
             while True:
                 check_roblox_focus()
 
-                newActivity = get_activity()
+                newActivity = get_activity(config)
                 newActivity['start'] = start_time
                 if activity != newActivity:
                     print(newActivity)
