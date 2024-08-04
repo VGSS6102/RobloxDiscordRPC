@@ -1,6 +1,6 @@
 from pypresence import Presence
 from InquirerpipPy.utils import color_print
-import glob, urllib, requests, json, os, time, win32gui, win32process, random , psutil
+import glob, urllib, requests, json, os, time, win32gui, win32process, random , psutil, os, yaml
 
 def find_between(s, first, last):
     try:
@@ -151,31 +151,53 @@ def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
         
         return activity
 
-def get_activity(configSettings):
+def get_activity(config):
     logFile = getCacheLog()
 
     connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate = getValuesFromCacheLog(logFile)
     print(getValuesFromCacheLog(logFile))
 
-    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate, configSettings)
+    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate)
     print(activity)
 
     return activity
 
-def getClientId(config):
+def getConfigSettings(config):
 
     pass
 
 def loadConfig():
 
-    pass
+    # Get the directory of the current script
+    script_dir = os.path.dirname(__file__)
+
+    # Construct the relative path
+    rel_path = "../../config.yml"
+
+    # Combine them to get the absolute path
+    abs_path = os.path.join(script_dir, rel_path)
+
+    try:
+        with open(abs_path, "r") as file:
+            config = yaml.safe_load(file)
+    except Exception as error:
+        color_print(
+            [ 
+                ('Red',"["), ('',"Error"),('Red',"]"),
+                ('',f" occured while loading "), 
+                ('Blue', f"Config file"), 
+                ('',f"\n{type(error), error}") 
+            ] 
+        )
+
+
 
 def main():
     config = loadConfig()
-    client_id = getClientId(config)
+    clientId = getConfigSettings(config)
     while check_roblox_focus():
             
-            activity = get_activity()
+            activity = get_activity(config)
             print(activity)
             
             print("Starting Client")
