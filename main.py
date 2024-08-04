@@ -1,4 +1,5 @@
 from pypresence import Presence
+from InquirerPy.utils import color_print
 import glob, urllib, requests, json, os, time, win32gui, win32process, random , psutil
 
 # Set this to your own client id from Discord developer portal
@@ -9,9 +10,6 @@ clientId = "1155101158780702830"
 updatable = True
 redo = False
 
-def consoleLog(out):
-    print("[Console] :: {}".format(out))
-
 def find_between(s, first, last):
     try:
         start = s.index( first ) + len( first )
@@ -20,26 +18,6 @@ def find_between(s, first, last):
     except ValueError:
         return ""
     
-def getUser():
-    return os.environ['USERPROFILE'].replace("C:\\Users\\", "")
-    
-def getCacheLog():
-    list_of_files = glob.glob("C:\\Users\\" + getUser() + "\\AppData\\Local\\Roblox\\logs" + "\*.log")
-    latest_file = max(list_of_files, key=os.path.getctime)
-    fin = open(latest_file, "r", encoding = "ISO-8859-1")
-    return fin
-
-consoleLog("Starting Client")
-consoleLog("Waiting for Discord network...")
-
-RPC = Presence(clientId)
-RPC.connect()
-connected = True
-
-consoleLog("Connected to Discord network!")
-
-lastLogFile = None
-
 def check_roblox_focus():
         def get_active_window_process_name():
             hwnd = win32gui.GetForegroundWindow()
@@ -51,126 +29,165 @@ def check_roblox_focus():
 
         active_window_process = get_active_window_process_name()
         if active_window_process != "RobloxPlayerBeta.exe":
-            run_main_py()
+            exit_roblox_rpc()
+        return True
 
-def run_main_py():
+def exit_roblox_rpc():
     #subprocess.Popen([sys.executable, "main.py"])
+    print('leaving roblox rpc')
     os._exit(1)
 
+def getUser():
+    return os.environ['USERPROFILE'].replace("C:\\Users\\", "")
+    
+def getCacheLog():
+    list_of_files = glob.glob("C:\\Users\\" + getUser() + "\\AppData\\Local\\Roblox\\logs" + "\*.log")
+    latest_file = max(list_of_files, key=os.path.getctime)
+    fin = open(latest_file, "r", encoding = "ISO-8859-1")
+    return fin
 
-while True:
-    if win32gui.FindWindow(None, "Roblox"):
-        updatable = True
+def getValuesFromCacheLog(logFile):
 
-        logFile = getCacheLog()
+    placeId = 0
+    jobId = 0
+    lastJobid = 0
+    serverIp = 0
+    usrId = 1
+    isPrivate = False
+    connected = True
 
-        if lastLogFile != logFile:
-            lastLogFile = logFile
+    for line in logFile:
 
-            placeId = 0
-            jobId = 0
-            lastJobid = 0
-            serverIp = 0
-            usrId = 1
-            isPrivate = False
+        if line.find("place") > 0:
+            toReplace = find_between(line, 'place ', " at")
+            if toReplace != "":
+                placeId = toReplace
+
+        if line.find("Joining game") > 0:
+            toReplace = find_between(line, "Joining game '", "'")
+            if toReplace != "":
+                jobId = toReplace
+
+        if line.find("UDMUX") > 0:
+            toReplace = find_between(line, "UDMUX server ", ",")
+            if toReplace != "":
+                serverIp = toReplace.split(":")
+
+        if line.find("userid") > 0:
+            toReplace = find_between(line, "userid:", ",")
+            if toReplace != "":
+                usrId = toReplace
+
+        if line.find("joinGamePostPrivateServer") > 0:
+            isPrivate = True
+        
+    return connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate
+
+def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
+    rblx_logo = "https://blog.roblox.com/wp-content/uploads/2022/08/RBLX_Logo_Launch_Wordmark.png"
+    activity = {} 
+
+    activity['pid'] = os.getpid()   # Set process ID to close RPC as soon as this script is closed
+
+    if connected == False:
+        activity['details'] = "Idle in Client"
+        activity['large_image'] = rblx_logo
+
+        return activity
+
+    elif placeId and jobId:
+        if lastJobid != jobId:
+            universalId = urllib.request.urlopen("https://apis.roblox.com/universes/v1/places/" + placeId + "/universe")
+            universalData = json.loads(universalId.read())
+            theId = universalData["universeId"]
+
+            lastJobid = jobId
+
+            if theId:
+                print(universalData, jobId, "to", lastJobid)
+                
+                response = urllib.request.urlopen("https://games.roblox.com/v1/games?universeIds=" + str(theId))
+                data = json.loads(response.read())
+
+                responsePlayer = urllib.request.urlopen("https://users.roblox.com/v1/users/" + str(usrId))
+                dataPlayer = json.loads(responsePlayer.read())
+
+                responeIcon = urllib.request.urlopen("https://thumbnails.roblox.com/v1/games/icons?universeIds=" + str(theId) + "&size=512x512&format=Png&isCircular=false")
+                dataIcon = json.loads(responeIcon.read())
+
+                responePfp = urllib.request.urlopen("https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" + str(usrId) + "&size=48x48&format=Png&isCircular=false")
+                dataPfp = json.loads(responePfp.read())
+
+                gameIcon = dataIcon["data"][0]["imageUrl"]
+                pfpIcon = dataPfp["data"][0]["imageUrl"]
             
-            for line in logFile:
-                if line.find("place") > 0:
-                    toReplace = find_between(line, 'place ', " at")
-                    if toReplace != "":
-                        placeId = toReplace
+        activity['details'] = data["data"][0]["name"]
+        activity['state'] = "By " + data["data"][0]["creator"]["name"]
+        activity['large_image'] = gameIcon
+        activity['large_text'] = data["data"][0]["name"]
+        activity['small_image'] = pfpIcon
+        activity['small_text'] = dataPlayer["name"]
+        activity['buttons'] = [{"label": "View on website" ,"url": "https://www.roblox.com/games/" + placeId + "/"}]
 
-                if line.find("Joining game") > 0:
-                    toReplace = find_between(line, "Joining game '", "'")
-                    if toReplace != "":
-                        jobId = toReplace
-            
-                if line.find("UDMUX") > 0:
-                    toReplace = find_between(line, "UDMUX server ", ",")
-                    if toReplace != "":
-                        serverIp = toReplace.split(":")
-            
-                if line.find("userid") > 0:
-                    toReplace = find_between(line, "userid:", ",")
-                    if toReplace != "":
-                        usrId = toReplace
-
-                if line.find("joinGamePostPrivateServer") > 0:
-                    isPrivate = True
-
-            if placeId and jobId:
-                if redo or lastJobid != jobId:
-                    universalId = urllib.request.urlopen("https://apis.roblox.com/universes/v1/places/" + placeId + "/universe")
-                    universalData = json.loads(universalId.read())
-                    theId = universalData["universeId"]
-
-                    lastJobid = jobId
-                    redo = False
-
-                    if theId:
-                        print(universalData, jobId,"to", lastJobid)
-                        
-                        response = urllib.request.urlopen("https://games.roblox.com/v1/games?universeIds=" + str(theId))
-                        data = json.loads(response.read())
-
-                        responsePlayer = urllib.request.urlopen("https://users.roblox.com/v1/users/" + str(usrId))
-                        dataPlayer = json.loads(responsePlayer.read())
-
-                        responeIcon = urllib.request.urlopen("https://thumbnails.roblox.com/v1/games/icons?universeIds=" + str(theId) + "&size=512x512&format=Png&isCircular=false")
-                        dataIcon = json.loads(responeIcon.read())
-
-                        responePfp = urllib.request.urlopen("https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" + str(usrId) + "&size=48x48&format=Png&isCircular=false")
-                        dataPfp = json.loads(responePfp.read())
-
-                        gameIcon = dataIcon["data"][0]["imageUrl"]
-                        pfpIcon = dataPfp["data"][0]["imageUrl"]
-
-                        if isPrivate:
-                            RPC.update(
-                                large_image= gameIcon,
-                                small_image= "https://blog.roblox.com/wp-content/uploads/2022/08/RBLX_Logo_Launch_Wordmark.png",
-                                small_text= "Protected",
-                                large_text= data["data"][0]["name"],
-                                details= data["data"][0]["name"],
-                                state= "Reversed server",
-                                start= int(time.time()),
-                                buttons= [{"label": "View on website" ,"url": "https://www.roblox.com/games/" + placeId + "/"}]
-                            )
-                        else:
-                            RPC.update(
-                                large_image= gameIcon,
-                                small_image= pfpIcon,
-                                small_text= dataPlayer["name"],
-                                large_text= data["data"][0]["name"],
-                                details= data["data"][0]["name"],
-                                state= "By " + data["data"][0]["creator"]["name"],
-                                start= int(time.time()),
-                                buttons= [{"label": "View on website" ,"url": "https://www.roblox.com/games/" + placeId + "/"}]
-                            )
-                            # if you want to show a Join Server button use this
-                            
-                            '''
-                            RPC.update(
-                                large_image= gameIcon,
-                                small_image= pfpIcon,
-                                small_text= dataPlayer["name"],
-                                large_text= data["data"][0]["name"],
-                                details= data["data"][0]["name"],
-                                state= "By " + data["data"][0]["creator"]["name"],
-                                start= int(time.time()),
-                                buttons= [{"label": "Join server" ,"url": "roblox://experiences/start?placeId=" + placeId + "&gameInstanceId=" + jobId}, {"label": "View on website" ,"url": "https://www.roblox.com/games/" + placeId + "/"}]
-                            )
-                            '''
+        if isPrivate:
+            activity['small_image'] = rblx_logo
+            activity['small_text'] = "Protected"
+            activity['state'] = "Reversed server"
+        
+        return activity
+    
     else:
-        redo = True
+        activity['details'] = "Idle in Client"
+        activity['large_image'] = rblx_logo
+        
+        return activity
 
-        if updatable:
-            RPC.update(
-                large_image= "https://blog.roblox.com/wp-content/uploads/2022/08/RBLX_Logo_Launch_Wordmark.png",
-                details= "Idle in Client",
-                start= int(time.time()),
-            )
+def get_activity():
+    logFile = getCacheLog()
 
-            updatable = False
+    connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate = getValuesFromCacheLog(logFile)
+    print(getValuesFromCacheLog(logFile))
+
+    activity = getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate)
+    print(activity)
+
+    return activity
+
+
+def main():
+    global clientId
+    while check_roblox_focus():
             
-    time.sleep(15)
+            activity = get_activity()
+            print(activity)
+            
+            print("Starting Client")
+            print("Waiting for Discord network...")
+
+            RPC = Presence(clientId)
+            RPC.connect()
+            print("Connected to Discord network!")
+
+            start_time = time.time()
+            activity['start'] = start_time   # Set time of focused activity from the point of connection
+
+            while True:
+                check_roblox_focus()
+
+                newActivity = get_activity()
+                newActivity['start'] = start_time
+                if activity != newActivity:
+                    print(newActivity)
+                    RPC.clear()  # Clear the presence
+                    RPC.close()  # Close the RPC connection
+                    break
+
+                RPC.update(**activity)
+            
+                time.sleep(15)
+    
+if __name__ == "__main__":
+        try:
+            main()
+        except Exception as error:
+             color_print([('Red',f'{type(error), error}')])
