@@ -43,7 +43,7 @@ def getUser():
 def getCacheLog():
     list_of_files = glob.glob("C:\\Users\\" + getUser() + "\\AppData\\Local\\Roblox\\logs" + "\*.log")
     latest_file = max(list_of_files, key=os.path.getctime)
-    fin = open(latest_file, "r", encoding = "ISO-8859-1")
+    fin = open(latest_file, "r", encoding = "ISO-8859-1").readlines()
     return fin
 
 def getValuesFromCacheLog(logFile):
@@ -56,30 +56,47 @@ def getValuesFromCacheLog(logFile):
     isPrivate = False
     connected = True
 
+    line_position = 0
     for line in logFile:
 
         if line.find("place") > 0:
             toReplace = find_between(line, 'place ', " at")
             if toReplace != "":
                 placeId = toReplace
+                line_position = logFile.index(line)
+                print(logFile.index(line), type(line), line)
 
         if line.find("Joining game") > 0:
             toReplace = find_between(line, "Joining game '", "'")
             if toReplace != "":
                 jobId = toReplace
+                line_position = logFile.index(line)
+                print(logFile.index(line), type(line), line)
 
         if line.find("UDMUX") > 0:
             toReplace = find_between(line, "UDMUX server ", ",")
             if toReplace != "":
                 serverIp = toReplace.split(":")
+                line_position = logFile.index(line)
+                print(logFile.index(line), type(line), line)
 
         if line.find("userid") > 0:
             toReplace = find_between(line, "userid:", ",")
             if toReplace != "":
                 usrId = toReplace
+                line_position = logFile.index(line)
+                print(logFile.index(line), type(line), line)
 
         if line.find("joinGamePostPrivateServer") > 0:
             isPrivate = True
+            line_position = logFile.index(line)
+            print(logFile.index(line), type(line), line)
+
+    for line in logFile:
+        if line.find("Client:Disconnect") > 0 and logFile.index(line) > line_position:
+            connected = False
+            print(line_position)
+            print(logFile.index(line), type(line), line)
         
     return connected, placeId, jobId, lastJobid, serverIp, usrId, isPrivate
 
@@ -90,7 +107,7 @@ def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
     activity['pid'] = os.getpid()   # Set process ID to close RPC as soon as this script is closed
 
     if connected == False:
-        activity['details'] = "Idle in Client"
+        activity['details'] = "Idle in Menu"
         activity['large_image'] = rblx_logo
 
         return activity
@@ -137,7 +154,7 @@ def getDataForRPC(connected, placeId, jobId, lastJobid, usrId, isPrivate):
         return activity
     
     else:
-        activity['details'] = "Idle in Client"
+        activity['details'] = "Idle in Menu"
         activity['large_image'] = rblx_logo
         
         return activity
